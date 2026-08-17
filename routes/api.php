@@ -1,8 +1,21 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\ProductController;
+use App\Http\Middleware\ApiRateLimit;
 use Illuminate\Support\Facades\Route;
 
-use App\Http\Controllers\ProductController;
 
-Route::apiResource('products', ProductController::class);
+Route::get(
+    'products/export/csv',
+    [ProductController::class, 'exportCsv']
+)->middleware(ApiRateLimit::class);
+
+/*
+|--------------------------------------------------------------------------
+| Product CRUD + search/filter/pagination
+|--------------------------------------------------------------------------
+*/
+Route::apiResource(
+    'products',
+    ProductController::class
+)->middleware(ApiRateLimit::class);

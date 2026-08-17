@@ -3,17 +3,36 @@
 namespace App\Helpers;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ApiResponse
 {
     /**
      * Get common API metadata.
      */
-    private static function meta(): array
+    private static function meta(Request $request = null): array
     {
+        $request = $request ?: request();
+
         return [
             'api_version' => 'v1',
             'timestamp' => now()->toIso8601String(),
+            'request_id' => $request->header('X-Request-ID'),
+        ];
+    }
+
+    /**
+     * Get rate limit metadata.
+     */
+    private static function rateLimitMeta(Request $request = null): array
+    {
+        $request = $request ?: request();
+
+        return [
+            'limit' => $request->attributes->get('rate_limit_limit'),
+            'remaining' => $request->attributes->get('rate_limit_remaining'),
+            'reset_at' => $request->attributes->get('rate_limit_reset_at'),
         ];
     }
 
@@ -21,15 +40,19 @@ class ApiResponse
      * Standard success response.
      */
     public static function success(
-        $data = null,
+        mixed $data = null,
         string $message = 'Success',
-        int $code = 200
-    ) {
+        int $code = 200,
+        ?Request $request = null
+    ): JsonResponse {
+        $request = $request ?: request();
+
         return response()->json([
             'status' => true,
             'message' => $message,
             'data' => $data,
-            'meta' => self::meta(),
+            'meta' => self::meta($request),
+            'rate_limit' => self::rateLimitMeta($request),
         ], $code);
     }
 
@@ -39,28 +62,36 @@ class ApiResponse
     public static function error(
         string $message = 'Error',
         int $code = 400,
-        $errors = null
-    ) {
+        mixed $errors = null,
+        ?Request $request = null
+    ): JsonResponse {
+        $request = $request ?: request();
+
         return response()->json([
             'status' => false,
             'message' => $message,
             'errors' => $errors,
-            'meta' => self::meta(),
+            'meta' => self::meta($request),
+            'rate_limit' => self::rateLimitMeta($request),
         ], $code);
     }
 
     /**
-     * Standard validation error response.
+     * Validation error response.
      */
     public static function validation(
-        $errors,
-        string $message = 'Validation Error'
-    ) {
+        mixed $errors,
+        string $message = 'Validation Error',
+        ?Request $request = null
+    ): JsonResponse {
+        $request = $request ?: request();
+
         return response()->json([
             'status' => false,
             'message' => $message,
             'errors' => $errors,
-            'meta' => self::meta(),
+            'meta' => self::meta($request),
+            'rate_limit' => self::rateLimitMeta($request),
         ], 422);
     }
 
@@ -69,12 +100,16 @@ class ApiResponse
      */
     public static function paginated(
         LengthAwarePaginator $data,
-        string $message = 'Data fetched successfully'
-    ) {
+        string $message = 'Data fetched successfully',
+        ?Request $request = null
+    ): JsonResponse {
+        $request = $request ?: request();
+
         return response()->json([
             'status' => true,
             'message' => $message,
             'data' => $data->items(),
+
             'pagination' => [
                 'total' => $data->total(),
                 'per_page' => $data->perPage(),
@@ -83,7 +118,11 @@ class ApiResponse
                 'from' => $data->firstItem(),
                 'to' => $data->lastItem(),
             ],
-            'meta' => self::meta(),
+
+            'meta' => self::meta($request),
+
+            'rate_limit' => self::rateLimitMeta($request),
+
         ]);
     }
 }
